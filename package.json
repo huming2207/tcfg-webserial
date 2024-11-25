@@ -1,0 +1,46 @@
+{
+    "name": "tcfg-webserial",
+    "version": "1.0.0",
+    "source": "src/index.html",
+    "license": "AGPL-3.0",
+    "author": {
+        "name": "Jackson Ming Hu",
+        "email": "huming2207@gmail.com"
+    },
+    "browserslist": "> 0.5%, last 2 versions, not dead",
+    "scripts": {
+        "start": "parcel",
+        "build": "parcel build"
+    },
+    "type": "module",
+    "description": "",
+    "devDependencies": {
+        "@eslint/js": "^9.15.0",
+        "@types/node": "^22.9.3",
+        "@types/react": "^18.3.12",
+        "@types/react-dom": "^18.3.1",
+        "@types/w3c-web-serial": "^1.0.7",
+        "@typescript-eslint/eslint-plugin": "^8.15.0",
+        "@typescript-eslint/parser": "^8.15.0",
+        "eslint": "^9.15.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "eslint-plugin-react": "^7.37.2",
+        "eslint-plugin-react-hooks": "^5.0.0",
+        "globals": "^15.12.0",
+        "nodemon": "^3.1.7",
+        "parcel": "^2.13.1",
+        "prettier": "^3.3.3",
+        "process": "^0.11.10",
+        "typescript": "^5.7.2",
+        "typescript-eslint": "^8.15.0"
+    },
+    "dependencies": {
+        "@fontsource/roboto": "^5.1.0",
+        "@mui/material": "^6.1.8",
+        "crc": "^4.3.2",
+        "notistack": "^3.0.1",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
+    }
+}
