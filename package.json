@@ -38,6 +38,7 @@
     "dependencies": {
         "@fontsource/roboto": "^5.1.0",
         "@mui/material": "^6.1.8",
+        "binary-parser": "github:huming2207/binary-parser#51d99c457393d157684433718afa8ad31fe91279",
         "crc": "^4.3.2",
         "notistack": "^3.0.1",
         "react": "^18.3.1",
