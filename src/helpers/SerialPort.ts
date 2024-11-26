@@ -2,10 +2,10 @@ export class SerialPortManager {
   private port: SerialPort | undefined;
   private writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-  private slip: SLIP;
+  private slip: SLIPCodec;
 
   constructor() {
-    this.slip = new SLIP();
+    this.slip = new SLIPCodec();
   }
 
   async open(baud: number): Promise<void> {
@@ -60,7 +60,7 @@ export class SerialPortManager {
   }
 }
 
-export class SLIP {
+export class SLIPCodec {
   private static readonly START = 0x5a;
   private static readonly END = 0xc0;
   private static readonly ESC = 0xdb;
@@ -73,19 +73,19 @@ export class SLIP {
 
   encode(buffer: Buffer): Uint8Array {
     const result: number[] = [];
-    result.push(SLIP.START); // Start with a START byte
+    result.push(SLIPCodec.START); // Start with a START byte
     for (const byte of buffer) {
-      if (byte === SLIP.END) {
-        result.push(SLIP.ESC, SLIP.ESC_END);
-      } else if (byte === SLIP.ESC) {
-        result.push(SLIP.ESC, SLIP.ESC_ESC);
-      } else if (byte === SLIP.START) {
-        result.push(SLIP.ESC, SLIP.ESC_START);
+      if (byte === SLIPCodec.END) {
+        result.push(SLIPCodec.ESC, SLIPCodec.ESC_END);
+      } else if (byte === SLIPCodec.ESC) {
+        result.push(SLIPCodec.ESC, SLIPCodec.ESC_ESC);
+      } else if (byte === SLIPCodec.START) {
+        result.push(SLIPCodec.ESC, SLIPCodec.ESC_START);
       } else {
         result.push(byte);
       }
     }
-    result.push(SLIP.END); // End with an END byte
+    result.push(SLIPCodec.END); // End with an END byte
     return new Uint8Array(result);
   }
 
@@ -95,17 +95,17 @@ export class SLIP {
 
     for (const byte of buffer) {
       if (escaping) {
-        if (byte === SLIP.ESC_END) {
-          result.push(SLIP.END);
-        } else if (byte === SLIP.ESC_ESC) {
-          result.push(SLIP.ESC);
-        } else if (byte === SLIP.ESC_START) {
-          result.push(SLIP.START);
+        if (byte === SLIPCodec.ESC_END) {
+          result.push(SLIPCodec.END);
+        } else if (byte === SLIPCodec.ESC_ESC) {
+          result.push(SLIPCodec.ESC);
+        } else if (byte === SLIPCodec.ESC_START) {
+          result.push(SLIPCodec.START);
         }
         escaping = false;
-      } else if (byte === SLIP.ESC) {
+      } else if (byte === SLIPCodec.ESC) {
         escaping = true;
-      } else if (byte !== SLIP.END) {
+      } else if (byte !== SLIPCodec.END) {
         result.push(byte);
       }
     }
@@ -116,11 +116,11 @@ export class SLIP {
   pushAndDecode(chunk: Uint8Array): Buffer | null {
     for (const byte of chunk) {
       if (!this.inPacket) {
-        if (byte === SLIP.START) {
+        if (byte === SLIPCodec.START) {
           this.inPacket = true; // Start processing after START byte
           this.buffer = [];
         }
-      } else if (byte === SLIP.END) {
+      } else if (byte === SLIPCodec.END) {
         const packet = this.decode(new Uint8Array(this.buffer));
         this.buffer = [];
         this.inPacket = false;
@@ -132,3 +132,5 @@ export class SLIP {
     return null; // No complete packet yet
   }
 }
+
+export const SerialManager = new SerialPortManager();
