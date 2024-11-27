@@ -10,6 +10,7 @@ import {
   PacketType,
   UptimePacket,
 } from "../schema/packet";
+import { SLIPCodec } from "./SLIPCodec";
 
 export class SerialPortManager extends EventEmitter {
   private port: SerialPort | undefined;
@@ -35,7 +36,7 @@ export class SerialPortManager extends EventEmitter {
     this.writer = this.port.writable.getWriter();
     this.reader = this.port.readable.getReader();
 
-    this.startRecv();
+    this.processIncomingChunks();
   }
 
   async send(data: Uint8Array): Promise<void> {
@@ -57,15 +58,21 @@ export class SerialPortManager extends EventEmitter {
     }
   }
 
-  private async startRecv(): Promise<void> {
-    if (!this.reader) return;
+  private processIncomingChunks(): void {
+    const readNextChunk = (): void => {
+      if (!this.reader) throw new Error("Reader is not initialized");
+      this.reader
+        .read()
+        .then(({ value, done }) => {
+          if (done) {
+            // Stream is closed
+            return;
+          }
 
-    try {
-      while (true) {
-        const { value, done } = await this.reader.read();
-        if (done) break;
+          if (!value) {
+            return; // No value received
+          }
 
-        if (value) {
           const rawPktBuf = this.slip.pushAndDecode(value);
           if (rawPktBuf) {
             try {
@@ -76,45 +83,44 @@ export class SerialPortManager extends EventEmitter {
 
                 // Emit events for specific packet types
                 switch (packetType) {
-                  case PacketType.PKT_ACK: {
-                    this.emit("ack", { header: header, payload: null });
+                  case PacketType.PKT_ACK:
+                    this.emit("ack", { header, payload: null });
                     break;
-                  }
-                  case PacketType.PKT_NACK: {
-                    this.emit("nack", { header: header, payload: null });
+                  case PacketType.PKT_NACK:
+                    this.emit("nack", { header, payload: null });
                     break;
-                  }
-                  case PacketType.PKT_CHUNK_ACK: {
-                    this.emit("chunkAck", { header: header, payload: payload });
+                  case PacketType.PKT_CHUNK_ACK:
+                    this.emit("chunkAck", { header, payload });
                     break;
-                  }
-                  case PacketType.PKT_CONFIG_RESULT: {
-                    this.emit("configResult", { header: header, payload: payload });
+                  case PacketType.PKT_CONFIG_RESULT:
+                    this.emit("configResult", { header, payload });
                     break;
-                  }
-                  case PacketType.PKT_UPTIME: {
-                    this.emit("uptime", { header: header, payload });
+                  case PacketType.PKT_UPTIME:
+                    this.emit("uptime", { header, payload });
                     break;
-                  }
-                  case PacketType.PKT_DEV_INFO: {
-                    this.emit("devInfo", { header: header, payload });
+                  case PacketType.PKT_DEV_INFO:
+                    this.emit("devInfo", { header, payload });
                     break;
-                  }
-                  default: {
-                    this.emit("unknown", { header: header, payload });
+                  default:
+                    this.emit("unknown", { header, payload });
                     break;
-                  }
                 }
               }
             } catch (error) {
               this.emit("error", error);
             }
           }
-        }
-      }
-    } catch (error) {
-      this.emit("error", error);
-    }
+
+          // Read the next chunk without recursion or infinite loops
+          setTimeout(readNextChunk, 0);
+        })
+        .catch((error) => {
+          this.emit("error", error);
+        });
+    };
+
+    // Start reading chunks
+    readNextChunk();
   }
 
   private validateAndExtract(packet: Uint8Array): { header: IPacketHeader; payload: Uint8Array } {
@@ -147,7 +153,7 @@ export class SerialPortManager extends EventEmitter {
       case PacketType.PKT_CHUNK_ACK:
         return { header, payload: ChunkAckPacket.parse(payload) as IChunkAckPacket };
       default:
-        return { header, payload: payload }; // Return raw payload for unknown packet types
+        return { header, payload }; // Return raw payload for unknown packet types
     }
   }
 
@@ -167,54 +173,5 @@ export class SerialPortManager extends EventEmitter {
     }
 
     return ~crc & 0xffff;
-  }
-}
-
-export class SLIPCodec {
-  private static readonly START = 0x5a;
-  private static readonly END = 0xc0;
-  private static readonly ESC = 0xdb;
-  private static readonly ESC_END = 0xdc;
-  private static readonly ESC_ESC = 0xdd;
-  private static readonly ESC_START = 0xde;
-
-  private buffer: number[] = [];
-  private inPacket: boolean = false;
-
-  encode(data: Uint8Array): Uint8Array {
-    const result: number[] = [];
-    result.push(SLIPCodec.START);
-    for (const byte of data) {
-      if (byte === SLIPCodec.END) {
-        result.push(SLIPCodec.ESC, SLIPCodec.ESC_END);
-      } else if (byte === SLIPCodec.ESC) {
-        result.push(SLIPCodec.ESC, SLIPCodec.ESC_ESC);
-      } else if (byte === SLIPCodec.START) {
-        result.push(SLIPCodec.ESC, SLIPCodec.ESC_START);
-      } else {
-        result.push(byte);
-      }
-    }
-    result.push(SLIPCodec.END);
-    return new Uint8Array(result);
-  }
-
-  pushAndDecode(chunk: Uint8Array): Uint8Array | null {
-    for (const byte of chunk) {
-      if (!this.inPacket) {
-        if (byte === SLIPCodec.START) {
-          this.inPacket = true;
-          this.buffer = [];
-        }
-      } else if (byte === SLIPCodec.END) {
-        const packet = Uint8Array.from(this.buffer);
-        this.buffer = [];
-        this.inPacket = false;
-        return packet;
-      } else {
-        this.buffer.push(byte);
-      }
-    }
-    return null;
   }
 }
