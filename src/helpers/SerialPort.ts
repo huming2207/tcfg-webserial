@@ -11,7 +11,7 @@ import {
   UptimePacket,
 } from "../schema/packet";
 import { SLIPCodec } from "./SLIPCodec";
-
+import { SerialPortState } from "../states/SerialPortState";
 export class SerialPortManager extends EventEmitter {
   private port: SerialPort | undefined;
   private writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
@@ -23,11 +23,11 @@ export class SerialPortManager extends EventEmitter {
     this.slip = new SLIPCodec();
   }
 
-  async open(baud: number): Promise<void> {
+  async open(baud: number, bufferSize: number = 1 * 1024 * 1024): Promise<void> {
     this.port = await navigator.serial.requestPort();
     if (!this.port) throw new Error("Serial port request failed!");
 
-    await this.port.open({ baudRate: baud });
+    await this.port.open({ baudRate: baud, bufferSize });
 
     if (!this.port.writable || !this.port.readable) {
       throw new Error("Cannot read/write to serial port!");
@@ -36,6 +36,8 @@ export class SerialPortManager extends EventEmitter {
     this.writer = this.port.writable.getWriter();
     this.reader = this.port.readable.getReader();
 
+    console.log("Serial: open OK");
+    SerialPortState.connected = true;
     this.processIncomingChunks();
   }
 
@@ -56,6 +58,8 @@ export class SerialPortManager extends EventEmitter {
     if (this.port) {
       await this.port.close();
     }
+
+    SerialPortState.connected = false;
   }
 
   private processIncomingChunks(): void {
@@ -64,16 +68,11 @@ export class SerialPortManager extends EventEmitter {
       this.reader
         .read()
         .then(({ value, done }) => {
-          if (done) {
-            // Stream is closed
+          if (done || !value) {
             return;
           }
 
-          if (!value) {
-            return; // No value received
-          }
-
-          const rawPktBuf = this.slip.pushAndDecode(value);
+          const rawPktBuf = this.slip.decode(value);
           if (rawPktBuf) {
             try {
               const packet = this.parsePacket(rawPktBuf);
@@ -131,7 +130,7 @@ export class SerialPortManager extends EventEmitter {
     bytes[1] = 0;
     bytes[2] = 0;
 
-    const calculatedCrc = this.calculateCrc16XMODEM(bytes, 0x0000);
+    const calculatedCrc = this.calcCRC16(bytes, 0x0000);
     if (expectCrc !== calculatedCrc) {
       throw new Error(`Invalid CRC: Calculated ${calculatedCrc.toString(16)} != Expected ${expectCrc.toString(16)}`);
     }
@@ -157,7 +156,7 @@ export class SerialPortManager extends EventEmitter {
     }
   }
 
-  private calculateCrc16XMODEM(data: Uint8Array, init: number): number {
+  private calcCRC16(data: Uint8Array, init: number): number {
     const POLY = 0x1021;
     let crc = ~init & 0xffff;
 
@@ -175,3 +174,5 @@ export class SerialPortManager extends EventEmitter {
     return ~crc & 0xffff;
   }
 }
+
+export const SerialManager = new SerialPortManager();

@@ -27,7 +27,7 @@ export class SLIPCodec {
     return new Uint8Array(result);
   }
 
-  pushAndDecode(chunk: Uint8Array): Uint8Array | null {
+  decode(chunk: Uint8Array): Uint8Array | null {
     for (const byte of chunk) {
       if (!this.inPacket) {
         if (byte === SLIPCodec.START) {
