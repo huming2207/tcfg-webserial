@@ -1,5 +1,11 @@
+import { Container } from "@mui/material";
 import React from "react";
+import { BottomBar } from "./components/bottomBar";
 
 export function App() {
-  return <></>;
+  return (
+    <Container>
+      <BottomBar />
+    </Container>
+  );
 }
