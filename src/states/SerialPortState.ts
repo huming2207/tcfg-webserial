@@ -1,11 +1,14 @@
 import { proxy } from "valtio";
+import { IDeviceInfoPacket } from "../schema/packet";
 
 export interface SerialPortStateInfo {
   connected: boolean;
+  devInfo?: IDeviceInfoPacket;
 }
 
 export const SerialPortState = proxy({
   connected: false,
+  devInfo: undefined,
 } as SerialPortStateInfo);
 
 export const addSerialStateCallback = () => {
